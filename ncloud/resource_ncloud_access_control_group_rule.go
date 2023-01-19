@@ -2,13 +2,16 @@ package ncloud
 
 import (
 	"fmt"
+	"log"
+	"regexp"
+	"strconv"
+	"time"
+
 	"github.com/NaverCloudPlatform/ncloud-sdk-go-v2/ncloud"
 	"github.com/NaverCloudPlatform/ncloud-sdk-go-v2/services/vserver"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
-	"log"
-	"time"
 )
 
 func init() {
@@ -34,9 +37,12 @@ func resourceNcloudAccessControlGroupRule() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"protocol": {
-							Type:             schema.TypeString,
-							Required:         true,
-							ValidateDiagFunc: ToDiagFunc(validation.StringInSlice([]string{"TCP", "UDP", "ICMP"}, false)),
+							Type:     schema.TypeString,
+							Required: true,
+							ValidateDiagFunc: ToDiagFunc(validation.All(
+								validation.StringMatch(regexp.MustCompile(`TCP|UDP|ICMP|\b([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-4])\b`), "only TCP, UDP, ICMP and 1-254 are valid values."),
+								validation.StringNotInSlice([]string{"1", "6", "17"}, false),
+							)),
 						},
 						"port_range": {
 							Type:             schema.TypeString,
@@ -71,9 +77,12 @@ func resourceNcloudAccessControlGroupRule() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"protocol": {
-							Type:             schema.TypeString,
-							Required:         true,
-							ValidateDiagFunc: ToDiagFunc(validation.StringInSlice([]string{"TCP", "UDP", "ICMP"}, false)),
+							Type:     schema.TypeString,
+							Required: true,
+							ValidateDiagFunc: ToDiagFunc(validation.All(
+								validation.StringMatch(regexp.MustCompile(`TCP|UDP|ICMP|\b([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-4])\b`), "only TCP, UDP, ICMP and 1-254 are valid values."),
+								validation.StringNotInSlice([]string{"1", "6", "17"}, false),
+							)),
 						},
 						"port_range": {
 							Type:             schema.TypeString,
@@ -143,16 +152,20 @@ func resourceNcloudAccessControlGroupRuleRead(d *schema.ResourceData, meta inter
 
 	d.Set("access_control_group_no", d.Id())
 
-	i := d.Get("inbound").(*schema.Set)
-	o := d.Get("outbound").(*schema.Set)
-
 	// Create empty set for getAccessControlGroupRuleList
 	iSet := schema.NewSet(schema.HashResource(resourceNcloudAccessControlGroupRule().Schema["inbound"].Elem.(*schema.Resource)), []interface{}{})
 	oSet := schema.NewSet(schema.HashResource(resourceNcloudAccessControlGroupRule().Schema["outbound"].Elem.(*schema.Resource)), []interface{}{})
 
 	for _, r := range rules {
+		var protocol string
+		if allowedProtocolCodes[*r.ProtocolType.Code] {
+			protocol = *r.ProtocolType.Code
+		} else {
+			protocol = strconv.Itoa(int(*r.ProtocolType.Number))
+		}
+
 		m := map[string]interface{}{
-			"protocol":                       *r.ProtocolType.Code,
+			"protocol":                       protocol,
 			"port_range":                     *r.PortRange,
 			"ip_block":                       *r.IpBlock,
 			"source_access_control_group_no": *r.AccessControlGroupSequence,
@@ -167,11 +180,11 @@ func resourceNcloudAccessControlGroupRuleRead(d *schema.ResourceData, meta inter
 	}
 
 	// Only set data intersection between resource and list
-	if err := d.Set("inbound", i.Intersection(iSet).List()); err != nil {
+	if err := d.Set("inbound", iSet.List()); err != nil {
 		log.Printf("[WARN] Error setting inbound rule set for (%s): %s", d.Id(), err)
 	}
 
-	if err := d.Set("outbound", o.Intersection(oSet).List()); err != nil {
+	if err := d.Set("outbound", oSet.List()); err != nil {
 		log.Printf("[WARN] Error setting outbound rule set for (%s): %s", d.Id(), err)
 	}
 
@@ -446,4 +459,10 @@ func expandRemoveAccessControlGroupRule(rules []interface{}) []*vserver.RemoveAc
 	}
 
 	return acgRuleList
+}
+
+var allowedProtocolCodes = map[string]bool{
+	"TCP":  true,
+	"UDP":  true,
+	"ICMP": true,
 }

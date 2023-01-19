@@ -74,7 +74,7 @@ The following arguments are supported:
 * `zone` - (Required) zone Code.
 * `vpc_no` - (Required) VPC No.
 * `subnet_no_list` - (Required) Subnet No. list.
-* `public_network` - (Optional) Public Subnet Network (`boolean`, For now, `public subnet` is not supported on Gov. Will be supported soon)
+* `public_network` - (Optional) Public Subnet Network (`boolean`)
 * `lb_private_subnet_no` - (Required) Subnet No. for private loadbalancer only.
 * `lb_public_subnet_no` - (Optional) Subnet No. for public loadbalancer only. (Available only `SGN` region)
 * `log` - (Optional)
@@ -88,6 +88,7 @@ In addition to all arguments above, the following attributes are exported:
 * `id` - Cluster uuid.
 * `uuid` - Cluster uuid.  (It is the same result as `id`)
 * `endpoint` - Control Plane API address.
+* `acg_no` - The ID of cluster ACG.
 
 ## Import
 
